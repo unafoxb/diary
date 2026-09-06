@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Serena's Studio</title>
+<style>
+:root{--paper:#fdfaf5;--ink:#2f2a25;--soft:#e8ddd0;--accent:#c9a88a;}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;line-height:1.6}
+.wrap{display:flex;min-height:100vh}
+.sidebar{width:360px;background:#f6efe6;border-right:1px solid var(--soft);padding:18px;position:sticky;top:0;height:100vh;overflow:auto}
+.main{flex:1;padding:24px 28px;max-width:1000px}
+.cal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cal-cell{aspect-ratio:1;border:1px solid var(--soft);border-radius:10px;background:#fff;padding:5px;cursor:pointer;position:relative;display:flex;flex-direction:column}
+.cal-cell.active{border-color:var(--ink);background:#fffef8;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.cal-cell.other{opacity:.3;background:transparent}
+.cal-num{font-size:11px;font-weight:600}
+.cal-prev{font-size:8px;opacity:.7;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);position:absolute;bottom:5px;right:5px}
+.cal-week{font-size:10px;opacity:.45;text-align:center}
+.box{background:#fff;border:1px solid var(--soft);border-radius:14px;padding:14px;margin:12px 0}
+textarea,input{width:100%;border:1px solid var(--soft);border-radius:10px;padding:8px 10px;background:#fdfaf5;font-family:inherit;font-size:13px;outline:none}
+textarea:focus,input:focus{border-color:var(--accent);background:#fff}
+textarea{min-height:60px;resize:vertical}
+.todo{display:flex;gap:8px;margin:6px 0;align-items:center}
+.todo input[type=checkbox]{width:18px;height:18px}
+.todo input[type=text]{flex:1}
+.lab{font-size:11px;opacity:.6;margin-top:10px;margin-bottom:3px}
+.card{background:#fff;border:1px solid var(--soft);border-radius:16px;padding:16px;margin:12px 0}
+.card h3{margin:0;font-size:14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;letter-spacing:.3px}
+.card .content{display:none;margin-top:10px}
+.card.open .content{display:block}
+.btn{border:1px solid var(--soft);background:#fff;padding:6px 12px;border-radius:999px;cursor:pointer;font-size:12px}
+.btn.primary{background:var(--ink);color:#fff}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:900px){.wrap{flex-direction:column}.sidebar{width:100%;height:auto;position:relative}.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="sidebar">
+<div class="cal-head">
+<button class="btn" onclick="changeMonth(-1)">‹</button>
+<div id="calTitle" style="font-weight:600;font-size:13px"></div>
+<button class="btn" onclick="changeMonth(1)">›</button>
+</div>
+<div class="cal-grid" id="weekRow"></div>
+<div class="cal-grid" id="calGrid" style="margin-top:4px"></div>
+
+<div class="box">
+<div style="font-size:13px;font-weight:600;margin-bottom:8px">今天想做什么 · <span id="sideDate"></span></div>
+<div id="todoList"></div>
+<button class="btn" style="margin-top:6px" onclick="addTodo()">+ 加一个</button>
+<div class="lab" style="margin-top:14px">今天实际做了什么</div>
+<textarea id="today_done" placeholder="只写真正做了的"></textarea>
+<div class="lab">愉悦瞬间</div><input id="today_truth" placeholder="得知真理的瞬间">
+<div class="lab">下一步</div><input id="today_next" placeholder="明天一小步">
+</div>
+
+<div style="font-size:11px;opacity:.5;margin-top:8px">本地存储 · 导出进OneDrive保存</div>
+<div style="margin-top:12px"><div style="font-size:12px;font-weight:600">SEEDS</div>
+<div style="display:flex;gap:6px;margin-top:6px"><input id="newSeed" placeholder="突然的想法..."><button class="btn" onclick="addSeed()">+</button></div>
+<div id="seedList"></div></div>
+</div>
+
+<div class="main">
+<h1 style="margin:0;font-size:26px;letter-spacing:.5px">Serena's Studio</h1>
+<div style="font-size:11px;opacity:.6;margin:4px 0 10px">看见世界 → 理解世界 → 形成判断 → 表达 → 借助AI变成现实 → 反馈</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+<button class="btn primary" onclick="exportWord()">导出今日为Word</button>
+<button class="btn" onclick="exportJSON()">导出JSON</button>
+<span id="hint" style="font-size:11px;opacity:.6"></span>
+<button class="btn" onclick="goToday()">回到今天</button>
+</div>
+
+<div class="card open" id="card-writing"><h3 onclick="toggleCard('card-writing')">Writing <span style="font-size:11px;opacity:.4">收起 / 展开</span></h3>
+<div class="content">
+<div class="lab">观察</div><textarea id="w_observe"></textarea>
+<div class="lab">思考 / 判断</div><textarea id="w_think"></textarea>
+<div class="lab">今日写作</div><textarea id="w_write"></textarea>
+</div></div>
+
+<div class="card" id="card-english"><h3 onclick="toggleCard('card-english')">English</h3>
+<div class="content">
+<div class="lab">输入</div><input id="e_input">
+<div class="lab">真正说的一句</div><textarea id="e_real"></textarea>
+<div class="lab">有感觉的词</div><input id="e_feel">
+</div></div>
+
+<div class="card" id="card-tarot"><h3 onclick="toggleCard('card-tarot')">Tarot</h3>
+<div class="content">
+<div class="lab">今日一牌 + 问题</div><input id="t_card">
+<div class="lab">第一直觉</div><textarea id="t_first"></textarea>
+<div class="lab">验证 / 案例</div><textarea id="t_verify"></textarea>
+</div></div>
+
+<div class="card" id="card-astro"><h3 onclick="toggleCard('card-astro')">Astrology</h3>
+<div class="content">
+<div class="lab">知识点</div><input id="a_knowledge">
+<div class="lab">判断</div><textarea id="a_judge"></textarea>
+<div class="lab">验证</div><input id="a_verify">
+</div></div>
+
+<div class="card" id="card-edit"><h3 onclick="toggleCard('card-edit')">Content</h3>
+<div class="content">
+<div class="lab">今日素材</div><input id="ed_clip">
+<div class="lab">到底看见了什么</div><textarea id="ed_see"></textarea>
+<div class="lab">旁白一句</div><input id="ed_voice">
+<div class="lab">阶段</div><select id="ed_stage"><option>想法</option><option>选题</option><option>文案</option><option>视觉</option><option>成片</option><option>已发布</option></select>
+</div></div>
+
+</div>
+</div>
+<script>
+const F=["today_done","today_truth","today_next","w_observe","w_think","w_write","e_input","e_real","e_feel","t_card","t_first","t_verify","a_knowledge","a_judge","a_verify","ed_clip","ed_see","ed_voice","ed_stage"];
+let selected=toDS(new Date()); let viewYear=new Date().getFullYear(); let viewMonth=new Date().getMonth();
+function toDS(d){const dt=new Date(d.getTime()-d.getTimezoneOffset()*60000); return dt.toISOString().slice(0,10)}
+function load(d){selected=d; const raw=localStorage.getItem("serena-day-"+d); const data=raw?JSON.parse(raw):{}; F.forEach(id=>{const el=document.getElementById(id); if(!el)return; el.value=data[id]||"";}); loadTodos(data.todos||[]); document.getElementById("sideDate").innerText=d; document.getElementById("hint").innerText="已加载 "+d; renderCal(); renderSeeds();}
+function save(){const data={}; F.forEach(id=>{const el=document.getElementById(id); if(el) data[id]=el.value;}); data.todos=getTodos(); const has=Object.values(data).some(v=>{if(Array.isArray(v)) return v.some(t=>t.text.trim()); return v&&String(v).trim()}); if(has||localStorage.getItem("serena-day-"+selected)) localStorage.setItem("serena-day-"+selected,JSON.stringify(data)); document.getElementById("hint").innerText="已保存 "+new Date().toLocaleTimeString(); renderCal();}
+function getTodos(){const list=[]; document.querySelectorAll("#todoList .todo").forEach(div=>{const cb=div.querySelector("input[type=checkbox]"); const txt=div.querySelector("input[type=text]"); list.push({done:cb.checked,text:txt.value});}); return list;}
+function loadTodos(todos){const cont=document.getElementById("todoList"); cont.innerHTML=""; if(todos.length===0) todos=[{done:false,text:""},{done:false,text:""}]; todos.forEach(t=>{cont.appendChild(createTodoEl(t.done,t.text));});}
+function createTodoEl(done,text){const div=document.createElement("div"); div.className="todo"; div.innerHTML=`<input type="checkbox" ${done?"checked":""} onchange="save()"><input type="text" placeholder="今天想做什么..." value="${text.replace(/"/g,'&quot;')}" oninput="save()"> <button class="btn" onclick="this.parentElement.remove();save()" style="padding:2px 8px">×</button>`; return div;}
+function addTodo(){document.getElementById("todoList").appendChild(createTodoEl(false,"")); save();}
+function renderCal(){
+  const title=document.getElementById("calTitle"); title.innerText=`${viewYear}年 ${viewMonth+1}月`;
+  const weekRow=document.getElementById("weekRow"); weekRow.innerHTML=""; ["一","二","三","四","五","六","日"].forEach(w=>{const div=document.createElement("div"); div.className="cal-week"; div.innerText=w; weekRow.appendChild(div);});
+  const grid=document.getElementById("calGrid"); grid.innerHTML="";
+  const first=new Date(viewYear,viewMonth,1); let start=first.getDay(); if(start===0) start=7; start=start-1;
+  const daysInMonth=new Date(viewYear,viewMonth+1,0).getDate(); const prevDays=new Date(viewYear,viewMonth,0).getDate();
+  for(let i=0;i<42;i++){
+    let d, other=false;
+    if(i<start){d=new Date(viewYear,viewMonth-1,prevDays-start+1+i); other=true;}
+    else if(i>=start+daysInMonth){d=new Date(viewYear,viewMonth+1,i-start-daysInMonth+1); other=true;}
+    else {d=new Date(viewYear,viewMonth,i-start+1);}
+    const ds=toDS(d); const raw=localStorage.getItem("serena-day-"+ds); const data=raw?JSON.parse(raw):{}; const has=!!raw && (Object.values(data).some(v=>{if(Array.isArray(v)) return v.some(t=>t.text.trim()); return typeof v==="string"&&v.trim()})|| (data.todos&&data.todos.some(t=>t.text.trim())));
+    let preview=""; if(data.todos&&data.todos[0]) preview=data.todos[0].text.slice(0,6);
+    const cell=document.createElement("div"); cell.className="cal-cell"+(other?" other":"")+(ds===selected?" active":"");
+    cell.innerHTML=`<div class="cal-num">${d.getDate()}</div>${preview?`<div class="cal-prev">${preview}</div>`:''}${has?'<div class="cal-dot"></div>':''}`;
+    cell.onclick=()=>{save(); load(ds);};
+    grid.appendChild(cell);
+    if(i>=start+daysInMonth-1 && (i+1)%7===0 && i>=27) break;
+  }
+}
+function changeMonth(dir){viewMonth+=dir; if(viewMonth>11){viewMonth=0; viewYear++;} if(viewMonth<0){viewMonth=11; viewYear--;} renderCal();}
+function goToday(){const now=new Date(); viewYear=now.getFullYear(); viewMonth=now.getMonth(); const ds=toDS(now); save(); load(ds);}
+function toggleCard(id){document.getElementById(id).classList.toggle("open");}
+function addSeed(){const inp=document.getElementById("newSeed"); const txt=inp.value.trim(); if(!txt)return; const seeds=JSON.parse(localStorage.getItem("serena-seeds")||"[]"); seeds.unshift({id:Date.now(),text:txt,state:"Seed"}); localStorage.setItem("serena-seeds",JSON.stringify(seeds)); inp.value=""; renderSeeds();}
+function renderSeeds(){const cont=document.getElementById("seedList"); cont.innerHTML=""; const seeds=JSON.parse(localStorage.getItem("serena-seeds")||"[]"); seeds.slice(0,8).forEach(s=>{const div=document.createElement("div"); div.style.display="flex"; div.style.gap="6px"; div.style.margin="6px 0"; div.style.fontSize="12px"; div.innerHTML=`<span style="flex:1">${s.text}</span><button class="btn" style="padding:2px 8px" onclick="del(${s.id})">×</button>`; cont.appendChild(div);});}
+function del(id){let s=JSON.parse(localStorage.getItem("serena-seeds")||"[]"); s=s.filter(x=>x.id!==id); localStorage.setItem("serena-seeds",JSON.stringify(s)); renderSeeds();}
+function exportWord(){save(); const raw=localStorage.getItem("serena-day-"+selected); const data=raw?JSON.parse(raw):{}; let body=`<h1>Serena - ${selected}</h1>`; if(data.todos) body+=`<h3>今日想做</h3><ul>${data.todos.map(t=>`<li>${t.done?"[x]":"[ ]"} ${t.text}</li>`).join("")}</ul>`; F.forEach(id=>{const v=data[id]; if(v&&String(v).trim()) body+=`<h3>${id}</h3><p>${String(v).replace(/\n/g,"<br>")}</p>`;}); const html=`<html xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"></head><body>${body}</body></html>`; const blob=new Blob([html],{type:"application/msword"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`Serena-${selected}.doc`; a.click();}
+function exportJSON(){const all={}; for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i); if(k.startsWith("serena-")) all[k]=localStorage.getItem(k);} const blob=new Blob([JSON.stringify(all,null,2)],{type:"application/json"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="Serena-All.json"; a.click();}
+F.forEach(id=>{const el=document.getElementById(id); if(!el)return; el.addEventListener("input",()=>{clearTimeout(window._t); window._t=setTimeout(save,400)});});
+load(selected);
+</script>
+</body>
+</html>
