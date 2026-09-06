@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Serena Widget</title>
+<style>
+:root{--paper:#fdfaf5;--ink:#2f2a25;--soft:#e8ddd0;--accent:#c9a88a}
+*{box-sizing:border-box}body{margin:0;background:transparent;font-family:-apple-system,"PingFang SC",sans-serif}
+.widget{width:360px;max-width:92vw;background:rgba(255,253,248,0.96);backdrop-filter:blur(14px);border:1px solid var(--soft);border-radius:20px;box-shadow:0 14px 40px rgba(0,0,0,.18);overflow:hidden;position:fixed;right:18px;bottom:18px;transition:all .25s}
+.header{padding:12px 14px;display:flex;justify-content:space-between;align-items:center;cursor:move;background:#f6efe6;border-bottom:1px solid var(--soft)}
+.header b{font-size:13px}
+.view-calendar{padding:10px}
+.view-todo-only .cal-wrap{display:none}
+.cal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-cell{font-size:11px;text-align:center;padding:7px 0;border-radius:8px;cursor:pointer;border:1px solid transparent}
+.cal-cell.today{background:var(--ink);color:#fff}
+.cal-cell.has{border-color:var(--accent);background:#fff}
+.cal-cell.selected{outline:2px solid var(--ink)}
+.week{font-size:10px;opacity:.45;text-align:center;padding:2px 0}
+.todo-list{padding:8px 12px;max-height:260px;overflow:auto}
+.todo{display:flex;gap:8px;align-items:center;margin:7px 0}
+.todo input[type=text]{flex:1;border:1px solid var(--soft);border-radius:9px;padding:7px 9px;background:#fff;font-size:12px}
+.todo input[type=checkbox]{width:16px;height:16px}
+.add{padding:0 12px 12px;display:flex;gap:6px}
+.btn{border:1px solid var(--soft);background:#fff;padding:5px 11px;border-radius:999px;font-size:11px;cursor:pointer}
+.btn.primary{background:var(--ink);color:#fff}
+.footer{padding:8px 12px;font-size:10px;opacity:.6;display:flex;justify-content:space-between;border-top:1px solid var(--soft);align-items:center}
+.hint{font-size:11px;opacity:.6;padding:0 12px 6px}
+</style>
+</head>
+<body>
+<div class="widget" id="widget">
+<div class="header" id="dragHandle"><b id="titleText">Serena · 日历</b><span id="dateLabel" style="font-size:11px;opacity:.7"></span></div>
+
+<div class="view-calendar" id="calendarView">
+<div class="cal-head"><button class="btn" onclick="changeMonth(-1)">‹</button><div id="calTitle" style="font-size:12px;font-weight:600"></div><button class="btn" onclick="changeMonth(1)">›</button></div>
+<div class="cal-grid" id="weekRow"></div>
+<div class="cal-grid" id="calGrid" style="margin-top:4px"></div>
+<div class="hint">点日期 → 下面添加 → 回车后自动变成纯待办悬浮</div>
+</div>
+
+<div class="todo-list" id="todoList"></div>
+<div class="add"><input id="newTodo" placeholder="今天/选中日想做什么...回车添加" style="flex:1;border:1px solid #e8ddd0;border-radius:9px;padding:7px 9px;font-size:12px"><button class="btn primary" onclick="addTodo()">+</button></div>
+
+<div class="footer"><button class="btn" id="backBtn" onclick="showCalendar()" style="display:none">‹ 返回日历</button><span id="modeHint">打开是日历，回车后只剩待办</span><button class="btn" onclick="window.open('https://unafoxb.github.io/diary/','_blank')">主站</button></div>
+</div>
+
+<script>
+function toDS(d){const dt=new Date(d.getTime()-d.getTimezoneOffset()*60000); return dt.toISOString().slice(0,10)}
+let selected=toDS(new Date()); let viewYear=new Date().getFullYear(); let viewMonth=new Date().getMonth(); let compact=false;
+function load(d){if(d) selected=d; const raw=localStorage.getItem("serena-day-"+selected); const data=raw?JSON.parse(raw):{}; renderTodos(data.todos||[]); document.getElementById("dateLabel").innerText=selected; renderCal(); updateMode();}
+function save(todos){const raw=localStorage.getItem("serena-day-"+selected); const data=raw?JSON.parse(raw):{}; data.todos=todos; localStorage.setItem("serena-day-"+selected,JSON.stringify(data)); renderCal();}
+function getTodos(){const list=[]; document.querySelectorAll("#todoList .todo").forEach(div=>{const cb=div.querySelector("input[type=checkbox]"); const txt=div.querySelector("input[type=text]"); list.push({done:cb.checked,text:txt.value});}); return list;}
+function renderTodos(todos){const cont=document.getElementById("todoList"); cont.innerHTML=""; if(todos.length===0) todos=[{done:false,text:""}]; todos.forEach(t=>{const div=document.createElement("div"); div.className="todo"; div.innerHTML=`<input type="checkbox" ${t.done?"checked":""} onchange="save(getTodos())"><input type="text" value="${t.text.replace(/"/g,'&quot;')}" oninput="save(getTodos())"><button class="btn" onclick="this.parentElement.remove();save(getTodos())">×</button>`; cont.appendChild(div);});}
+function addTodo(){const inp=document.getElementById("newTodo"); const txt=inp.value.trim(); if(!txt)return; const todos=getTodos().filter(t=>t.text.trim()); todos.push({done:false,text:txt}); save(todos); renderTodos(todos); inp.value=""; // 回车后进入纯待办模式
+compact=true; updateMode(); localStorage.setItem("serena-widget-compact","1");}
+function renderCal(){
+  document.getElementById("calTitle").innerText=`${viewYear}年 ${viewMonth+1}月`;
+  const weekRow=document.getElementById("weekRow"); weekRow.innerHTML=""; ["一","二","三","四","五","六","日"].forEach(w=>{const d=document.createElement("div"); d.className="week"; d.innerText=w; weekRow.appendChild(d);});
+  const grid=document.getElementById("calGrid"); grid.innerHTML="";
+  const first=new Date(viewYear,viewMonth,1); let start=first.getDay(); if(start===0) start=7; start--; const daysInMonth=new Date(viewYear,viewMonth+1,0).getDate(); const prevDays=new Date(viewYear,viewMonth,0).getDate();
+  for(let i=0;i<42;i++){let d, other=false; if(i<start){d=new Date(viewYear,viewMonth-1,prevDays-start+1+i); other=true;} else if(i>=start+daysInMonth){d=new Date(viewYear,viewMonth+1,i-start-daysInMonth+1); other=true;} else {d=new Date(viewYear,viewMonth,i-start+1);} const ds=toDS(d); const raw=localStorage.getItem("serena-day-"+ds); const has=raw&&JSON.parse(raw).todos&&JSON.parse(raw).todos.some(t=>t.text.trim()); const cell=document.createElement("div"); cell.className="cal-cell"+(other?"":"")+(has?" has":"")+(ds===selected?" selected":"")+(ds===toDS(new Date())?" today":""); cell.innerText=d.getDate(); cell.onclick=()=>{selected=ds; load(); compact=false; updateMode(); localStorage.setItem("serena-widget-compact","0");}; grid.appendChild(cell); if(i>=start+daysInMonth-1 && (i+1)%7===0 && i>=27) break; }
+}
+function changeMonth(dir){viewMonth+=dir; if(viewMonth>11){viewMonth=0; viewYear++;} if(viewMonth<0){viewMonth=11; viewYear--;} renderCal();}
+function updateMode(){
+  const calView=document.getElementById("calendarView"); const widget=document.getElementById("widget"); const backBtn=document.getElementById("backBtn"); const title=document.getElementById("titleText"); const hint=document.getElementById("modeHint");
+  if(compact){ calView.style.display="none"; widget.classList.add("view-todo-only"); backBtn.style.display="inline-block"; title.innerText="Serena · 待办"; hint.innerText=selected+" · 专注模式"; widget.style.width="320px"; }
+  else { calView.style.display="block"; widget.classList.remove("view-todo-only"); backBtn.style.display="none"; title.innerText="Serena · 日历"; hint.innerText="打开是日历，回车后只剩待办"; widget.style.width="360px"; }
+}
+function showCalendar(){compact=false; localStorage.setItem("serena-widget-compact","0"); updateMode(); renderCal();}
+document.getElementById("newTodo").addEventListener("keydown",e=>{if(e.key==="Enter") addTodo();});
+compact=localStorage.getItem("serena-widget-compact")==="1"; // 记住上次状态
+// drag
+let isDrag=false,sx,sy,ox,oy; const handle=document.getElementById("dragHandle"); const widget=document.getElementById("widget");
+handle.addEventListener("mousedown",e=>{isDrag=true; sx=e.clientX; sy=e.clientY; const r=widget.getBoundingClientRect(); ox=r.left; oy=r.top; widget.style.right="auto"; widget.style.bottom="auto";});
+window.addEventListener("mousemove",e=>{if(!isDrag)return; widget.style.left=(ox+e.clientX-sx)+"px"; widget.style.top=(oy+e.clientY-sy)+"px";});
+window.addEventListener("mouseup",()=>isDrag=false);
+load();
+</script>
+</body>
+</html>
